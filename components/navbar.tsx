@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
+import lifeflow from "../app/LifeFlow.png"
 
 const Navbar = () => {
   const pathname = usePathname();
@@ -43,7 +44,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <Image
-              src="/lifeflow.png"
+              src={lifeflow}
               alt="LifeFlow logo"
               width={36}
               height={36}
