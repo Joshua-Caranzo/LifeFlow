@@ -43,7 +43,7 @@ const MONTHS = [
 export default function Savings() {
   const [savings, setSavings] = useState<Saving[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   // Modal states
   const [showSavingModal, setShowSavingModal] = useState(false);
@@ -61,6 +61,10 @@ export default function Savings() {
   const [borrowData, setBorrowData] = useState({
     amount: "",
   });
+
+  useEffect(() => {
+    setSelectedYear(new Date().getFullYear());
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -173,7 +177,9 @@ export default function Savings() {
     // Check if we can borrow this amount
     if (totalBorrowed + borrowAmount > maxBorrowable) {
       alert(
-        `Cannot borrow ₱${borrowAmount.toFixed(2)}. Maximum borrowable amount is ₱${availableToBorrow.toFixed(2)}`
+        `Cannot borrow ₱${borrowAmount.toFixed(
+          2
+        )}. Maximum borrowable amount is ₱${availableToBorrow.toFixed(2)}`
       );
       return;
     }
@@ -223,7 +229,9 @@ export default function Savings() {
   };
 
   const handleOpenThresholdModal = () => {
-    alert(`Yearly savings threshold is fixed at ₱${FIXED_THRESHOLD.toLocaleString()}`);
+    alert(
+      `Yearly savings threshold is fixed at ₱${FIXED_THRESHOLD.toLocaleString()}`
+    );
   };
 
   if (loading) return <Loader message="Loading savings..." />;
@@ -568,7 +576,10 @@ export default function Savings() {
                 <select
                   value={formData.month}
                   onChange={(e) =>
-                    setFormData({ ...formData, month: parseInt(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      month: parseInt(e.target.value),
+                    })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
