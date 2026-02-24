@@ -129,19 +129,13 @@ const generateExpenseSchedules = async (supabase: any, yearNum: number) => {
 };
 
 
-// Date generation functions
-const generateDailyDates = (
-  year: number,
-  startDate: Date,
-  endDate?: string | null
-) => {
+const generateDailyDates = (year: number, startDate: Date, endDate?: string | null) => {
   const dates: Date[] = [];
-  const d = new Date(startDate);
+  let d = new Date(startDate);
 
+  // Start from first occurrence in the target year (skip dates before year)
   if (d.getFullYear() < year) {
-    d.setFullYear(year);
-    d.setMonth(0);
-    d.setDate(1);
+    d = new Date(year, d.getMonth(), d.getDate());
   }
 
   while (d.getFullYear() === year) {
@@ -153,18 +147,19 @@ const generateDailyDates = (
   return dates;
 };
 
-const generateWeeklyDates = (
-  year: number,
-  startDate: Date,
-  endDate?: string | null
-) => {
+const generateWeeklyDates = (year: number, startDate: Date, endDate?: string | null) => {
   const dates: Date[] = [];
-  const d = new Date(startDate);
+  let d = new Date(startDate);
 
   if (d.getFullYear() < year) {
-    d.setFullYear(year);
-    d.setMonth(0);
-    d.setDate(1);
+    // Jump to first occurrence in the year
+    d = new Date(year, d.getMonth(), d.getDate());
+
+    // Align to same weekday as original startDate
+    const targetDay = startDate.getDay();
+    while (d.getDay() !== targetDay) {
+      d.setDate(d.getDate() + 1);
+    }
   }
 
   while (d.getFullYear() === year) {
@@ -176,61 +171,66 @@ const generateWeeklyDates = (
   return dates;
 };
 
-const generateSemiMonthlyDates = (
-  year: number,
-  startDate: Date,
-  endDate?: string | null
-) => {
+const generateBiWeeklyDates = (year: number, startDate: Date, endDate?: string | null) => {
+  const dates: Date[] = [];
+  let d = new Date(startDate);
+
+  if (d.getFullYear() < year) {
+    d = new Date(year, d.getMonth(), d.getDate());
+    const targetDay = startDate.getDay();
+    while (d.getDay() !== targetDay) {
+      d.setDate(d.getDate() + 1);
+    }
+  }
+
+  while (d.getFullYear() === year) {
+    if (isBeyondEndDate(d, endDate)) break;
+    dates.push(new Date(d));
+    d.setDate(d.getDate() + 14);
+  }
+
+  return dates;
+};
+
+const generateMonthlyDates = (year: number, startDate: Date, endDate?: string | null) => {
+  const dates: Date[] = [];
+  const startMonth = startDate.getFullYear() === year ? startDate.getMonth() : 0;
+
+  for (let month = startMonth; month < 12; month++) {
+    let d = new Date(year, month, startDate.getDate());
+    if (d.getMonth() !== month) {
+      d = new Date(year, month + 1, 0); // last day of month
+    }
+    if (isBeyondEndDate(d, endDate)) break;
+    if (d >= startDate) dates.push(d);
+  }
+
+  return dates;
+};
+
+const generateSemiMonthlyDates = (year: number, startDate: Date, endDate?: string | null) => {
   const dates: Date[] = [];
   const day1 = startDate.getDate();
-  let d2Day = 0;
 
-  for (let month = 0; month < 12; month++) {
+  const startMonth = startDate.getFullYear() === year ? startDate.getMonth() : 0;
+
+  for (let month = startMonth; month < 12; month++) {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     // First occurrence
     const d1Day = Math.min(day1, daysInMonth);
     const d1 = new Date(year, month, d1Day);
+    if (!isBeyondEndDate(d1, endDate) && d1 >= startDate) dates.push(d1);
 
-    if (!isBeyondEndDate(d1, endDate)) {
-      dates.push(d1);
-    }
-
-    // Second occurrence = day1 + 15 (clamped)
-    if (day1 == 1) d2Day = Math.min(day1 + 14, daysInMonth);
-    else d2Day = Math.min(day1 + 15, daysInMonth);
-
+    // Second occurrence
+    let d2Day = day1 === 1 ? Math.min(day1 + 14, daysInMonth) : Math.min(day1 + 15, daysInMonth);
     if (d2Day !== d1Day) {
       const d2 = new Date(year, month, d2Day);
-      if (!isBeyondEndDate(d2, endDate)) {
-        dates.push(d2);
-      }
+      if (!isBeyondEndDate(d2, endDate) && d2 >= startDate) dates.push(d2);
     }
   }
 
   return dates.sort((a, b) => a.getTime() - b.getTime());
-};
-
-const generateMonthlyDates = (
-  year: number,
-  startDate: Date,
-  endDate?: string | null
-) => {
-  const dates: Date[] = [];
-  const day = startDate.getDate();
-
-  for (let month = 0; month < 12; month++) {
-    let d = new Date(year, month, day);
-    // If day overflowed to next month (e.g., Feb 31 becomes Mar 3)
-    if (d.getMonth() !== month) {
-      // Create date for last day of intended month
-      d = new Date(year, month + 1, 0);
-    }
-    if (isBeyondEndDate(d, endDate)) break;
-    dates.push(d);
-  }
-
-  return dates;
 };
 
 const generateOnTheSpotDates = (
@@ -257,32 +257,3 @@ const isBeyondEndDate = (date: Date, endDate?: string | null) => {
   return date > end;
 };
 
-const generateBiWeeklyDates = (
-  year: number,
-  startDate: Date,
-  endDate?: string | null
-) => {
-  const dates: Date[] = [];
-  const d = new Date(startDate);
-
-  // If the start date is before the target year, jump to first occurrence in year
-  if (d.getFullYear() < year) {
-    d.setFullYear(year);
-    d.setMonth(0);
-    d.setDate(1);
-
-    // Align to the same weekday as original startDate
-    const targetDay = startDate.getDay();
-    while (d.getDay() !== targetDay) {
-      d.setDate(d.getDate() + 1);
-    }
-  }
-
-  while (d.getFullYear() === year) {
-    if (isBeyondEndDate(d, endDate)) break;
-    dates.push(new Date(d));
-    d.setDate(d.getDate() + 14); // 🔥 every other week
-  }
-
-  return dates;
-};
