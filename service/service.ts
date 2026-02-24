@@ -38,8 +38,8 @@ const generateIncomeSchedules = async (supabase: any, yearNum: number) => {
     if (deleteError) console.error("Error deleting old schedules:", deleteError);
 
     // 2️⃣ Generate new dates
-    const startDate = new Date(income.date);
-    if (isNaN(startDate.getTime())) continue;
+    const startDate = parseLocalDate(income.date);
+    if (!startDate || isNaN(startDate.getTime())) continue;
 
     let dates: Date[] = [];
     switch (income.incomePeriodId) {
@@ -95,8 +95,8 @@ const generateExpenseSchedules = async (supabase: any, yearNum: number) => {
 
     if (deleteError) console.error("Error deleting old expense schedules:", deleteError);
 
-    const startDate = new Date(expense.expenseDate);
-    if (isNaN(startDate.getTime())) continue;
+    const startDate = parseLocalDate(expense.expenseDate);
+    if (!startDate || isNaN(startDate.getTime())) continue;
 
     let dates: Date[] = [];
     switch (expense.occurrenceId) {
@@ -129,14 +129,25 @@ const generateExpenseSchedules = async (supabase: any, yearNum: number) => {
 };
 
 
-const generateDailyDates = (year: number, startDate: Date, endDate?: string | null) => {
+// Date generation functions
+const generateDailyDates = (
+  year: number,
+  startDate: Date,
+  endDate?: string | null
+) => {
   const dates: Date[] = [];
-  let d = new Date(startDate);
+  const d = new Date(startDate);
 
-  // Start from first occurrence in the target year (skip dates before year)
   if (d.getFullYear() < year) {
-    d = new Date(year, d.getMonth(), d.getDate());
+    // Start date is before target year — begin from Jan 1
+    d.setFullYear(year);
+    d.setMonth(0);
+    d.setDate(1);
+  } else if (d.getFullYear() > year) {
+    // Start date is after target year — nothing to generate
+    return dates;
   }
+  // else: start date is within the target year — use it as-is
 
   while (d.getFullYear() === year) {
     if (isBeyondEndDate(d, endDate)) break;
@@ -147,20 +158,23 @@ const generateDailyDates = (year: number, startDate: Date, endDate?: string | nu
   return dates;
 };
 
-const generateWeeklyDates = (year: number, startDate: Date, endDate?: string | null) => {
+const generateWeeklyDates = (
+  year: number,
+  startDate: Date,
+  endDate?: string | null
+) => {
   const dates: Date[] = [];
-  let d = new Date(startDate);
+  const d = new Date(startDate);
 
   if (d.getFullYear() < year) {
-    // Jump to first occurrence in the year
-    d = new Date(year, d.getMonth(), d.getDate());
-
-    // Align to same weekday as original startDate
-    const targetDay = startDate.getDay();
-    while (d.getDay() !== targetDay) {
-      d.setDate(d.getDate() + 1);
+    // Advance from startDate in 7-day increments until we reach the target year
+    while (d.getFullYear() < year) {
+      d.setDate(d.getDate() + 7);
     }
+  } else if (d.getFullYear() > year) {
+    return dates;
   }
+  // else: start date is within the target year — use it as-is
 
   while (d.getFullYear() === year) {
     if (isBeyondEndDate(d, endDate)) break;
@@ -171,48 +185,20 @@ const generateWeeklyDates = (year: number, startDate: Date, endDate?: string | n
   return dates;
 };
 
-const generateBiWeeklyDates = (year: number, startDate: Date, endDate?: string | null) => {
-  const dates: Date[] = [];
-  let d = new Date(startDate);
-
-  if (d.getFullYear() < year) {
-    d = new Date(year, d.getMonth(), d.getDate());
-    const targetDay = startDate.getDay();
-    while (d.getDay() !== targetDay) {
-      d.setDate(d.getDate() + 1);
-    }
-  }
-
-  while (d.getFullYear() === year) {
-    if (isBeyondEndDate(d, endDate)) break;
-    dates.push(new Date(d));
-    d.setDate(d.getDate() + 14);
-  }
-
-  return dates;
-};
-
-const generateMonthlyDates = (year: number, startDate: Date, endDate?: string | null) => {
-  const dates: Date[] = [];
-  const startMonth = startDate.getFullYear() === year ? startDate.getMonth() : 0;
-
-  for (let month = startMonth; month < 12; month++) {
-    let d = new Date(year, month, startDate.getDate());
-    if (d.getMonth() !== month) {
-      d = new Date(year, month + 1, 0); // last day of month
-    }
-    if (isBeyondEndDate(d, endDate)) break;
-    if (d >= startDate) dates.push(d);
-  }
-
-  return dates;
-};
-
-const generateSemiMonthlyDates = (year: number, startDate: Date, endDate?: string | null) => {
+const generateSemiMonthlyDates = (
+  year: number,
+  startDate: Date,
+  endDate?: string | null
+) => {
   const dates: Date[] = [];
   const day1 = startDate.getDate();
+  let d2Day = 0;
 
+  // If start date is in the target year, begin from that month; otherwise start from Jan
   const startMonth = startDate.getFullYear() === year ? startDate.getMonth() : 0;
+
+  // If start date is after the target year, nothing to generate
+  if (startDate.getFullYear() > year) return dates;
 
   for (let month = startMonth; month < 12; month++) {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -220,17 +206,53 @@ const generateSemiMonthlyDates = (year: number, startDate: Date, endDate?: strin
     // First occurrence
     const d1Day = Math.min(day1, daysInMonth);
     const d1 = new Date(year, month, d1Day);
-    if (!isBeyondEndDate(d1, endDate) && d1 >= startDate) dates.push(d1);
 
-    // Second occurrence
-    let d2Day = day1 === 1 ? Math.min(day1 + 14, daysInMonth) : Math.min(day1 + 15, daysInMonth);
+    // Skip dates before the actual startDate (relevant when startMonth === startDate.getMonth())
+    if (d1 >= startDate && !isBeyondEndDate(d1, endDate)) {
+      dates.push(d1);
+    }
+
+    // Second occurrence = day1 + 15 (clamped)
+    if (day1 == 1) d2Day = Math.min(day1 + 14, daysInMonth);
+    else d2Day = Math.min(day1 + 15, daysInMonth);
+
     if (d2Day !== d1Day) {
       const d2 = new Date(year, month, d2Day);
-      if (!isBeyondEndDate(d2, endDate) && d2 >= startDate) dates.push(d2);
+      if (d2 >= startDate && !isBeyondEndDate(d2, endDate)) {
+        dates.push(d2);
+      }
     }
   }
 
   return dates.sort((a, b) => a.getTime() - b.getTime());
+};
+
+const generateMonthlyDates = (
+  year: number,
+  startDate: Date,
+  endDate?: string | null
+) => {
+  const dates: Date[] = [];
+  const day = startDate.getDate();
+
+  // If start date is in the target year, begin from that month; otherwise start from Jan
+  const startMonth = startDate.getFullYear() === year ? startDate.getMonth() : 0;
+
+  // If start date is after the target year, nothing to generate
+  if (startDate.getFullYear() > year) return dates;
+
+  for (let month = startMonth; month < 12; month++) {
+    let d = new Date(year, month, day);
+    // If day overflowed to next month (e.g., Feb 31 becomes Mar 3)
+    if (d.getMonth() !== month) {
+      // Create date for last day of intended month
+      d = new Date(year, month + 1, 0);
+    }
+    if (isBeyondEndDate(d, endDate)) break;
+    dates.push(d);
+  }
+
+  return dates;
 };
 
 const generateOnTheSpotDates = (
@@ -250,10 +272,48 @@ const generateOnTheSpotDates = (
   return dates;
 };
 
+/**
+ * Parses a "YYYY-MM-DD" string as local midnight, avoiding the UTC shift
+ * that `new Date("YYYY-MM-DD")` causes (it treats the string as UTC).
+ */
+const parseLocalDate = (dateStr: string | null | undefined): Date | null => {
+  if (!dateStr) return null;
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length < 3 || parts.some(isNaN)) return null;
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d); // month is 0-indexed, no UTC offset
+};
+
 const isBeyondEndDate = (date: Date, endDate?: string | null) => {
   if (!endDate) return false;
-  const end = new Date(endDate);
-  if (isNaN(end.getTime())) return false;
+  const end = parseLocalDate(endDate);
+  if (!end || isNaN(end.getTime())) return false;
   return date > end;
 };
 
+const generateBiWeeklyDates = (
+  year: number,
+  startDate: Date,
+  endDate?: string | null
+) => {
+  const dates: Date[] = [];
+  const d = new Date(startDate);
+
+  if (d.getFullYear() < year) {
+    // Advance in 14-day increments until we reach the target year
+    while (d.getFullYear() < year) {
+      d.setDate(d.getDate() + 14);
+    }
+  } else if (d.getFullYear() > year) {
+    return dates;
+  }
+  // else: start date is within the target year — use it as-is
+
+  while (d.getFullYear() === year) {
+    if (isBeyondEndDate(d, endDate)) break;
+    dates.push(new Date(d));
+    d.setDate(d.getDate() + 14);
+  }
+
+  return dates;
+};

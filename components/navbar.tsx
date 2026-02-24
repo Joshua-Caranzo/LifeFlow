@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
-import lifeflow from "../app/LifeFlow.png"
+import lifeflow from "../app/LifeFlow1.png"
 
 const Navbar = () => {
   const pathname = usePathname();
@@ -26,11 +26,11 @@ const Navbar = () => {
     }`;
 
   const navLinks = [
-    { href: "/", label: "Dashboard" },
-    { href: "/expense", label: "Expenses" },
-    { href: "/income", label: "Incomes" },
-    { href: "/savings", label: "Savings" },
-    { href: "/extras", label: "Others" },
+    { href: "/protected", label: "Dashboard" },
+    { href: "/protected/expense", label: "Expenses" },
+    { href: "/protected/income", label: "Incomes" },
+    { href: "/protected/savings", label: "Savings" },
+    { href: "/protected/extras", label: "Others" },
   ];
 
   const handleLinkClick = () => {
