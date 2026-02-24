@@ -1,12 +1,13 @@
+// app/(protected)/layout.tsx
+export const dynamic = "force-dynamic"; // <--- important
+
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import jwt from "jsonwebtoken";
 import Navbar from "@/components/navbar";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("session")?.value;
+  const token = (await cookies()).get("session")?.value; 
 
   try {
     jwt.verify(token ?? "", process.env.JWT_SECRET!);
@@ -16,7 +17,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
   return (
     <>
-      <Navbar />
+      <Navbar /> {/* client component is fine */}
       {children}
     </>
   );
