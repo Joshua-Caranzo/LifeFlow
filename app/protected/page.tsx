@@ -29,10 +29,13 @@ interface ExpenseSchedule {
 
 interface Saving {
   id: number;
-  month: number;
+  month?: number;
   amount: number;
   isPaid: boolean;
-  year: number;
+  isObsolete:boolean;
+  year?: number;
+  name?:string;
+  savingsTypeId:number;
 }
 
 export default function Dashboard() {

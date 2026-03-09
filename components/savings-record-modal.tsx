@@ -4,10 +4,13 @@ import { X, Wallet, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 export interface SavingRecord {
   id: number;
-  month: number;
-  year: number;
+  month?: number;
   amount: number;
   isPaid: boolean;
+  isObsolete: boolean;
+  year?: number;
+  name?: string;
+  savingsTypeId: number;
 }
 
 interface SavingsRecordsModalProps {
@@ -25,6 +28,22 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+// Primary savings (savingsTypeId === 1) have month + year.
+// Other savings have name (nullable) but no month/year.
+const isPrimary = (r: SavingRecord) => r.savingsTypeId === 1;
+
+const recordLabel = (r: SavingRecord): string => {
+  if (isPrimary(r)) {
+    const monthName =
+      r.month != null ? MONTH_NAMES[r.month - 1] ?? "Unknown Month" : "Unknown Month";
+    return `${monthName}${r.year != null ? ` ${r.year}` : ""}`;
+  }
+  return r.name ?? "Other Savings";
+};
+
+const recordSublabel = (r: SavingRecord): string =>
+  isPrimary(r) ? "Allocated savings" : "One-time allocation";
+
 export default function SavingsRecordsModal({
   isOpen,
   onClose,
@@ -37,8 +56,9 @@ export default function SavingsRecordsModal({
   const sorted = useMemo(() => {
     return [...records].sort((a, b) => {
       if (sortField === "date") {
-        const aVal = a.year * 100 + a.month;
-        const bVal = b.year * 100 + b.month;
+        // Primary savings sort by year/month; other savings fall to the bottom (treated as 0)
+        const aVal = isPrimary(a) ? (a.year ?? 0) * 100 + (a.month ?? 0) : 0;
+        const bVal = isPrimary(b) ? (b.year ?? 0) * 100 + (b.month ?? 0) : 0;
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       }
       return sortDir === "asc" ? a.amount - b.amount : b.amount - a.amount;
@@ -132,10 +152,10 @@ export default function SavingsRecordsModal({
                   <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {MONTH_NAMES[r.month - 1]} {r.year}
+                      {recordLabel(r)}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Allocated savings
+                      {recordSublabel(r)}
                     </p>
                   </div>
                 </div>
